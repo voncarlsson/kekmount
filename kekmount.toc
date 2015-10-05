@@ -1,0 +1,8 @@
+## Interface: 60200
+## Title: KekMount
+## Notes: Summons appropriate mounts based on location and character skill
+## Author: VonCarlsson
+## Version: 1.0
+## SavedVariables: kmountdb
+
+core.lua
