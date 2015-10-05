@@ -1,7 +1,7 @@
-# SmartMount
-SmartMount is a small addon that enabled a one-click summoning of an appropriate mount.
+# KekMount
+KekMount is a small addon that enabled a one-click summoning of an appropriate mount.
 
-# What SmartMount does
+# What KekMount does
 * Summons ground mount if in no-fly zone or if the player haven't got the prerequisites for flying.
 * Summons flying mount in flyable areas if the player have prerequisites (achivement, flying skill)
 * Summons Ahn'quiraj mount if player is in appropriate zone
@@ -15,3 +15,6 @@ SmartMount is a small addon that enabled a one-click summoning of an appropriate
 * It does not summon _Travel Form_ or _Ghost Wolf_. This is due to _CastSpell_ and _CastSpellByName_ being protected functions and me being lazy.
 * While it support most mounts it does not support very rare "mounts" like _Dragonwrath, Tarecgosa's Rest_.
 * No UI (and it will most likely never get one, if you want UI there are several other bloated addons to choose form)
+
+# Why the stupid name?
+Lack of imagination/All good ones are already taken
