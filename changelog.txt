@@ -1,0 +1,28 @@
+1.5.0
+* Bugfixes
+- Fixed bug where no usable mounts would be found if player tried to mount while in combat
+- Fixed a bug where standing on the bottom of the ocean(/any other surface at the bottom of a body of water) would make the underwater check return false
+- Added missing "KMount: " to some error messages
+
+* Changes
+- Replaced KM_GetMounts() with global KM_GetUsableMounts()
+- Minor optimization through removal of the extremely inefficient table.insert
+- Changed behavior so that flying mounts can be summoned while submerged, previously only summoned ground mounts if IsSubmerged() returned true
+- Changed behavior so that Blizzard's mount manager is default for selecting favorites
+- KM_GetUsableMounts() will now ONLY trigger if MOUNT_JOURNAL_USABILITY_CHANGED or MountJournal OnHide event is triggered or if forced through /kmount update
+- Added UpdateMountList() instead of directly using deprecated KM_GetMounts()
+- Moved API-part into a seperate file, kmount_api.lua
+- Moved Poseidus to KM_UnderWaterMounts as it can be used everywhere and is slower than the regular Vashj'ir seahorse
+- Will now wait until PLAYER_LOGIN fires before updating usable mount list
+
+* New features
+- Will now check for 8 (including sea legs) common spells granting the player underwater breathing, previously only checked breathing resulting in no underwater mounts being used if there was no breath bar
+- Added checks to see if a player is dead or ghost to prevent KM_GetMounts() from failing
+- Added check to see if player is moving or falling, since mounts cannot be summoned while doing so
+- Added a 0.2 second cooldown on summoning mounts for performance reasons
+- Can now forcefully update the mount list via /kmount update
+- Added a 2 second grace period when resurfacing/submerging preventing underwater mounts and vashj'ir specific mounts from being summoned, since blizzard provide us with no way of knowing if the player is at the surface of water
+- Added metatable, KM_GetMountInfo, to cache GetMountInfoExtraByID() results, automatically map to GetMountIDs() to make it iterable without using pairs and hold a count of mount id span (1-570 as of writing)
+- Added a few more debug messages
+- Can now list counts of all usable mounts via /kmount mountcount
+- Added a ownership test to isValidMount() so that the player can't /kmount setg/f a mount they do not own. It's still possible though to set mounts the player might not be able to use (engineering mounts etc)
