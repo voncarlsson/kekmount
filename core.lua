@@ -3,7 +3,7 @@ local KM_QueueCheck, KMDebug = false, false
 local PlayerFaction = select(1, UnitFactionGroup("player"));
 local KMname = "\124c0c5f94ffKMount: \124cffffffff";
 local KMnamedb = "\124c9021cfffKMount debug: \124cffffffff";
-local KMVer = "1.5.0";
+local KMVer = "1.5.1";
 local KMlastuse, UsableMountCount = 0, 0
 local underwaterSpells = {76377, 196344, 7179, 22808, 11789, 40621, 44235, 116271}
 local MountFrame, LoginFrame = CreateFrame("Frame"), CreateFrame("Frame")
@@ -57,6 +57,11 @@ local function KM_Mount(forceType)
         KMlastuse = GetTime()
     end
 
+    if IsMounted() and IsFlying() and kmountdb["fdismount"] ~= true then
+        UIErrorsFrame:AddMessage("KMount: Dismounting while flying disallowed by setting.", 1.0, 0.0, 0.0, 53, 5);
+        return;
+    end
+    
     if IsMounted() == true and forceType == nil then
         Dismount();
         return;
@@ -74,11 +79,6 @@ local function KM_Mount(forceType)
     
     if IsFalling() or IsPlayerMoving() then
         UIErrorsFrame:AddMessage("KMount: Player is moving.", 1.0, 0.0, 0.0, 53, 5);
-        return;
-    end
-    
-    if IsMounted() and IsFlying() and kmountdb["fdismount"] ~= true then
-        UIErrorsFrame:AddMessage("KMount: Dismounting while flying disallowed by setting.", 1.0, 0.0, 0.0, 53, 5);
         return;
     end
     
