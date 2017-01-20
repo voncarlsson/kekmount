@@ -1,6 +1,29 @@
+1.6.0
+* Bugfixes
+- Added additional measures to prevent KM_GetUsableMounts() from being called in-combat
+- Fixed a bug where flight protection wasn't working
+- Fixed a bug where unable to resolve continent before map had been opened in current session leading to not beingable to detect if the player could use flying by running SetMapToCurrentZone() on login
+- Fixed a bug where mounts requiring no skill to use (e.g. Chauffeured Mekgineer's Chopper/Mechano-Hog) would fail to summon
+- Fixed a bug where summoning a no skill mount would cause a LUA error even if the mount was successfully summoned
+
+* Changes
+- Now calling the ability to prevent dismounting in-flight "in-flight dismount protection"
+- In-flight dismount protection turned off by default
+- Made it more visually obvious when a feature is toggled off
+- All kekmount features are now wrapped in its own API table (and only available from): kekmount. Currently includes kekmount.indexOf(), kekmount.GetUsableMounts() and kekmount.GetMountInfo[].
+- Added an indicator for session no-fly to /kmount info
+- Made /kmount info more informative and dynamically change depending on what settings are turned on or off
+
+* New features
+- Added a second in-flight dismount protection method that requires the player to double tap the mount key to dismount
+- Added new local function IsAtMapID() which returns false if the player isn't at the input map ID or true if the player is. Takes a table or number as input.
+- Added a function that disables flying for the session (until player relogs or /reload)
+- Added a list containing 21 flyable mounts that are now considered both flying and ground mounts (invincible, sky golem etc). Can be toggled using /kmount toggleam
+- New command "toggleam" toggles the abovementioned functionality
+
 1.5.1
 * Bugfixes
-- Fixed a bug where mount would be dismissed even if flight protection was toggled on
+- Fixed a bug where mount would be dismissed in-flight even if flight protection was toggled on
 
 1.5.0
 * Bugfixes

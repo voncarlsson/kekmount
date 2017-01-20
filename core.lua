@@ -1,13 +1,13 @@
 local KM_GroundMounts, KM_WaterGroundMounts, KM_UnderWaterMounts, KM_NoSkillMounts, KM_FlyingMounts, KM_AQMounts, MMFavGround, MMFavFlying, hasSeahorse
-local KM_QueueCheck, KMDebug = false, false
-local PlayerFaction = select(1, UnitFactionGroup("player"));
+local KM_QueueCheck, KMDebug, KM_nofly = false, false, false
 local KMname = "\124c0c5f94ffKMount: \124cffffffff";
 local KMnamedb = "\124c9021cfffKMount debug: \124cffffffff";
-local KMVer = "1.5.1";
+local KMVer = "1.6.0";
+local KM_FPtime = GetTime();
 local KMlastuse, UsableMountCount = 0, 0
+local NoMountZones = {}
 local underwaterSpells = {76377, 196344, 7179, 22808, 11789, 40621, 44235, 116271}
 local MountFrame, LoginFrame = CreateFrame("Frame"), CreateFrame("Frame")
-PlayerFaction = PlayerFaction == "Horde" and 0 or PlayerFaction == "Alliance" and 1;
 
 MountFrame.time = 0
 MountFrame:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
@@ -26,19 +26,37 @@ MountFrame:SetScript("OnEvent",
     end
 )
 
-local function indexOf(t, object)
-    if type(t) == "table" then
-        for i = 1, #t do
-            if object == t[i] then
-                return i
+local function IsAtMapID(mapID)
+    local tempMapID, currentMapID = GetCurrentMapAreaID();
+    local out = false
+    
+    SetMapToCurrentZone();
+    
+    currentMapID = GetCurrentMapAreaID();
+    
+    if type(mapID) == "number" then
+        mapID = {mapID}
+    end
+    
+    if type(mapID) == "table" then
+        for i = 1, #mapID do
+            if mapID[i] == currentMapID then
+                out = true
             end
         end
-        return -1
     end
+    
+    SetMapByID(tempMapID);
+    
+    return out
 end
 
 local function UpdateMountList()
-    KM_GroundMounts, KM_FlyingMounts, KM_UnderWaterMounts, KM_NoSkillMounts, KM_WaterGroundMounts, KM_AQMounts, MMFavGround, MMFavFlying, hasSeahorse, UsableMountCount = unpack(KM_GetUsableMounts())
+    if UnitAffectingCombat("player") then
+        return false
+    end
+
+    KM_GroundMounts, KM_FlyingMounts, KM_UnderWaterMounts, KM_NoSkillMounts, KM_WaterGroundMounts, KM_AQMounts, MMFavGround, MMFavFlying, hasSeahorse, UsableMountCount = unpack(kekmount.GetUsableMounts())
     KM_QueueCheck = false
     
     if KMDebug == true then
@@ -57,9 +75,15 @@ local function KM_Mount(forceType)
         KMlastuse = GetTime()
     end
 
-    if IsMounted() and IsFlying() and kmountdb["fdismount"] ~= true then
-        UIErrorsFrame:AddMessage("KMount: Dismounting while flying disallowed by setting.", 1.0, 0.0, 0.0, 53, 5);
-        return;
+    if IsMounted() and IsFlying() and kmountdb["fdismount"] == true then
+        if kmountdb["fdismountmethod"] == 2 and GetTime() - KM_FPtime > 1.5 then
+            KM_FPtime = GetTime()
+            UIErrorsFrame:AddMessage("KMount: Tap again to dismount.", 1.0, 0.0, 0.0, 53, 5);
+            return
+        elseif kmountdb["fdismountmethod"] == 1 then
+            UIErrorsFrame:AddMessage("KMount: Dismounting while flying disallowed by setting.", 1.0, 0.0, 0.0, 53, 5);
+            return;
+        end
     end
     
     if IsMounted() == true and forceType == nil then
@@ -98,7 +122,7 @@ local function KM_Mount(forceType)
         -- Underwater breathing spells will interfere with the underwater check so make sure if any are active
         while UnitBuff("player", i) ~= nil do
             local _, _, _, _, _, _, _, _, _, _, spellID = UnitBuff("player", i)
-            if indexOf(underwaterSpells, spellID) ~= -1 then
+            if kekmount.IndexOf(underwaterSpells, spellID) ~= -1 then
                 underwaterBreathing = true
                 break
             end
@@ -126,20 +150,15 @@ local function KM_Mount(forceType)
     if GetSpellBookItemInfo("Apprentice Riding") == nil and GetSpellBookItemInfo("Journeyman Riding") == nil and GetSpellBookItemInfo("Expert Riding") == nil and GetSpellBookItemInfo("Artisan Riding") == nil and GetSpellBookItemInfo("Master Riding") == nil then
         if #KM_NoSkillMounts > 0 then
             -- Mounts requiring no riding skill. I.e. Riding Turtle and Chauffeured Mekgineer's Chopper/Mechano-Hog
-            C_MountJournal.SummonByID(KM_NoSkillMounts[math.floor(math.random()*#KM_NoSkillMounts)]);
+            C_MountJournal.SummonByID(KM_NoSkillMounts[math.floor(math.random()*#KM_NoSkillMounts) + 1]);
+            return
         else
             UIErrorsFrame:AddMessage("KMount: You don't have any riding skill.", 1.0, 0.0, 0.0, 53, 5);
             return;
         end
     end
 
-    -- GetSpellBookItemInfo
-
-    -- Map has to be set to current location or be closed for GetCurrentMapContinent() to actually return the player's location
-    -- Otherwise it will return the continent index of whatever continent the player is looking at on the map
-    SetMapToCurrentZone();
-
-    if (GetCurrentMapAreaID() == 610 or GetCurrentMapAreaID() == 613 or GetCurrentMapAreaID() == 614 or GetCurrentMapAreaID() == 615) and IsUnderwater == true and hasSeahorse ~= false and GetTime() - MountFrame.time > 2 then
+    if IsAtMapID({610, 613, 614, 615}) and IsUnderwater == true and hasSeahorse ~= false and GetTime() - MountFrame.time > 2 then
         -- While in waters of Vashj'ir
         C_MountJournal.SummonByID(hasSeahorse);
 
@@ -152,7 +171,7 @@ local function KM_Mount(forceType)
         return;
     end
 
-    if GetCurrentMapAreaID() == 772 and #KM_AQMounts > 0 then
+    if IsAtMapID({772}) and #KM_AQMounts > 0 then
         -- Ahn'Qiraj
         C_MountJournal.SummonByID(KM_AQMounts[math.floor(math.random()*#KM_AQMounts) + 1]);
         return;
@@ -173,6 +192,10 @@ local function KM_Mount(forceType)
     elseif GetCurrentMapContinent() == 7 and select(4, GetAchievementInfo(10018)) == true then
         -- Draenor
         CanFly = true;
+    end
+
+    if KM_nofly == true then
+        CanFly = false
     end
 
     if ((CanFly == true and IsFlyableArea() == true) or forceType == 2) and forceType ~= 1 then
@@ -215,7 +238,7 @@ local function isValidMount(n, t)
         return false;
     end
 
-    if select(9, C_MountJournal.GetMountInfoByID(n)) ~= nil and select(9, C_MountJournal.GetMountInfoByID(n)) ~= PlayerFaction then
+    if select(9, C_MountJournal.GetMountInfoByID(n)) ~= nil and select(9, C_MountJournal.GetMountInfoByID(n)) ~= kekmount.PlayerFaction then
         -- Wrong faction
         print(KMname .. "'" .. select(1, C_MountJournal.GetMountInfoByID(n)) .. "' is not usable by " .. select(1, UnitFactionGroup("player")) .. " characters.");
         return false;
@@ -227,13 +250,13 @@ local function isValidMount(n, t)
         return false;
     end
 
-    if t == 1 and indexOf(KM_GroundMounts, n) == -1 and indexOf(KM_NoSkillMounts, n) == -1 then
+    if t == 1 and kekmount.IndexOf(KM_GroundMounts, n) == -1 and kekmount.IndexOf(KM_NoSkillMounts, n) == -1 then
         -- Check if mount is in array of valid ground mounts
         print(KMname .. "'" .. select(1, C_MountJournal.GetMountInfoByID(n)) .. "' is not available as a ground mount for this character.");
         return false;
     end
 
-    if t == 2 and indexOf(KM_FlyingMounts, n) == -1 then
+    if t == 2 and kekmount.IndexOf(KM_FlyingMounts, n) == -1 then
         -- Check if mount is in array of valid flying mounts
         print(KMname .. "'" .. select(1, C_MountJournal.GetMountInfoByID(n)) .. "' is not available as a flying mount for this character.");
         return false;
@@ -256,11 +279,19 @@ local function updateSettings(reset)
     end
 
     if kmountdb["fdismount"] == nil then
-        kmountdb["fdismount"] = true;
+        kmountdb["fdismount"] = false;
     end
 
     if kmountdb["UseBlizFav"] == nil then
         kmountdb["UseBlizFav"] = true;
+    end
+
+    if kmountdb["fdismountmethod"] == nil then
+        kmountdb["fdismountmethod"] = 1;
+    end
+    
+    if kmountdb["useambiguouslist"] == nil then
+        kmountdb["useambiguouslist"] = true;
     end
 
     if select(3, UnitClass("player")) ~= 6 and kmountdb["preferwmount"] == nil then
@@ -290,10 +321,10 @@ local function handler(msg, editbox)
 
         local count = 0;
         
-        for i = 1, KM_GetMountInfo.count, 1 do
-            local creatureName, creatureID, summonable, isFavorite, isFactionSpecific, faction, owned, mountID, mountType = unpack(KM_GetMountInfo[i])
+        for i = 1, kekmount.GetMountInfo.count, 1 do
+            local creatureName, creatureID, summonable, isFavorite, isFactionSpecific, faction, owned, mountID, mountType = unpack(kekmount.GetMountInfo[i])
 
-            if owned and summonable and(faction == nil or faction == PlayerFaction) then
+            if owned and summonable and(faction == nil or faction == kekmount.PlayerFaction) then
                 if mountType == 248 and mtype == 2 then
                     count = count + 1;
                     print("\124c0c5f94ff" .. creatureName .. "\124cffffffff: " .. mountID .. (isFavorite == true and " *" or isFavorite == false and ""));
@@ -308,11 +339,11 @@ local function handler(msg, editbox)
             print(KMname .. "No mounts available in that category.");
         end
     elseif command == "getbyname" then
-        for i = 1, KM_GetMountInfo.count, 1 do
-            local creatureName = KM_GetMountInfo[i][1];
+        for i = 1, kekmount.GetMountInfo.count, 1 do
+            local creatureName = kekmount.GetMountInfo[i][1];
             if creatureName ~= nil then
                 if strlower(strsub(creatureName, 1, strlen(rest))) == strlower(rest) then
-                    print(KMname .. "Index of \124c0c5f94ff" .. creatureName .. "\124cffffffff is \124c0c5f94ff" .. KM_GetMountInfo[i][8] .. "\124cffffffff.");
+                    print(KMname .. "Index of \124c0c5f94ff" .. creatureName .. "\124cffffffff is \124c0c5f94ff" .. kekmount.GetMountInfo[i][8] .. "\124cffffffff.");
                     return;
                 end
             end
@@ -337,15 +368,15 @@ local function handler(msg, editbox)
     elseif command == "togglefd" then
         if kmountdb["fdismount"] == true then
             kmountdb["fdismount"] = false;
-            print(KMname .. "Will \124cFFFF0000no longer\124cFFFFFFFF dismount if player is flying.");
+            print(KMname .. "In-flight dismount protection \124cFFFF0000TURNED OFF\124cFFFFFFFF.");
         else
             kmountdb["fdismount"] = true;
-            print(KMname .. "Will dismount even if player is flying.");
+            print(KMname .. "In-flight dismount protection is now active. See '/kmount info' for what method is used.");
         end
     elseif command == "togglew" then
         if kmountdb["wmount"] == true then
             kmountdb["wmount"] = false;
-            print(KMname .. "Will \124cFFFF0000no longer\124cFFFFFFFF prefer underwater mounts while underwater.");
+            print(KMname .. "Will \124cFFFF0000NO LONGER\124cFFFFFFFF prefer underwater mounts while underwater.");
         else
             kmountdb["wmount"] = true;
             print(KMname .. "Will now prefer underwater mounts while underwater.");
@@ -353,19 +384,50 @@ local function handler(msg, editbox)
     elseif command == "togglepw" then
         if kmountdb["preferwmount"] == true then
             kmountdb["preferwmount"] = false;
-            print(KMname .. "Will \124cFFFF0000no longer\124cFFFFFFFF prefer water walking mounts.");
+            print(KMname .. "Will \124cFFFF0000NO LONGER\124cFFFFFFFF prefer water walking mounts.");
         else
             kmountdb["preferwmount"] = true;
             print(KMname .. "Will now prefer water walking mounts.");
         end
+    elseif command == "setfd" then
+        if rest == "1" then
+            kmountdb["fdismountmethod"] = 1;
+        elseif rest == "2" then
+            kmountdb["fdismountmethod"] = 2;
+        else
+            print(KMname .. "In-flight dismount protection methods are:\n1 - Completely turns off ability to dismount in-flight (default).\n2 - Double tap within 1.5 seconds to dismount in-flight.");
+        end
+    elseif command == "toggleam" then
+        if kmountdb["useambiguouslist"] == true then
+            kmountdb["useambiguouslist"] = false;
+            print(KMname .. "Will \124cFFFF0000NO LONGER\124cFFFFFFFF add ground mount look-alikes to ground mount list.");
+        else
+            kmountdb["useambiguouslist"] = true;
+            print(KMname .. "Will now add ground mount look-alikes to ground mount list.");
+        end
     elseif command == "info" then
+        local GStatus = (kmountdb["PreferredGMount"] ~= nil and select(1, C_MountJournal.GetMountInfoByID(kmountdb["PreferredGMount"])) or "None (random until set)")
+        local FStatus = (kmountdb["PreferredFMount"] ~= nil and select(1, C_MountJournal.GetMountInfoByID(kmountdb["PreferredFMount"])) or "None (random until set)")
+
+        if kmountdb["UseBlizFav"] then
+            GStatus = "\124cff999999Overriden by blizzard mount manager\124cFFFFFFFF"
+            FStatus = GStatus
+        elseif not kmountdb["UseBlizFav"] and (kmountdb["preferwmount"] and #KM_WaterGroundMounts > 0) then
+            GStatus = "\124cff999999Overriden by \124c0c5f94fftogglepw\124cFFFFFFFF"
+        end
+
         print("\124c06418affKek\124c34ec7900Mount\124cFFFFFFFF " .. KMVer)
-        print("\124c0c5f94ffPreferred Ground Mount: \124cffffffff" .. (kmountdb["PreferredGMount"] ~= nil and select(1, C_MountJournal.GetMountInfoByID(kmountdb["PreferredGMount"])) or "None"));
-        print("\124c0c5f94ffPreferred Flying Mount: \124cffffffff" .. (kmountdb["PreferredFMount"] ~= nil and select(1, C_MountJournal.GetMountInfoByID(kmountdb["PreferredFMount"])) or "None"));
-        print("\124c0c5f94ffDismount in flight: \124cffffffff" .. (kmountdb["fdismount"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
+        print("\124c0c5f94ffPreferred Ground Mount: \124cffffffff" .. GStatus);
+        print("\124c0c5f94ffPreferred Flying Mount: \124cffffffff" .. FStatus);
+        print("\124c0c5f94ffIn-flight dismount protection: \124cffffffff" .. (kmountdb["fdismount"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
+        if kmountdb["fdismount"] == true then
+            print("\124c0c5f94ffIn-flight dismount protection method: \124cffffffff" .. (kmountdb["fdismountmethod"] == 1 and "No dismount allowed." or "Double tap to dismount."));
+        end
         print("\124c0c5f94ffPrefer Underwater Mount(s): \124cffffffff" .. (kmountdb["wmount"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
         print("\124c0c5f94ffPrefer Blizzard's mount manager favorite(s): \124cffffffff" .. (kmountdb["UseBlizFav"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
         print("\124c0c5f94ffPrefer water walking mount(s): \124cffffffff" .. (kmountdb["preferwmount"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
+        print("\124c0c5f94ffUse ambiguous flying mounts as ground mount(s): \124cffffffff" .. (kmountdb["useambiguouslist"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
+        print("\124c0c5f94ffSession no-fly: \124cffffffff" .. (KM_nofly and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
     elseif command == "reset" then
         updateSettings(true);
         print("\124c0c5f94ffKMount:\124cffffffff Settings for '" .. UnitName("player") .. "' have been reset.");
@@ -384,7 +446,7 @@ local function handler(msg, editbox)
     elseif command == "togglebf" then
         if kmountdb["UseBlizFav"] == true then
             kmountdb["UseBlizFav"] = false;
-            print(KMname .. "Will \124cFFFF0000no longer\124cFFFFFFFF prefer favorite(s) in mount manager.");
+            print(KMname .. "Will \124cFFFF0000NO LONGER\124cFFFFFFFF prefer favorite(s) in mount manager.");
         else
             kmountdb["UseBlizFav"] = true;
             print(KMname .. "Will now prefer favorite(s) in mount manager.");
@@ -392,8 +454,11 @@ local function handler(msg, editbox)
     elseif command == "update" then
         UpdateMountList()
         print(KMname .. "Updated mount list.");
+    elseif command == "nofly" then
+        KM_nofly = not KM_nofly
+        print(KMname .. "Session no-fly now " .. (KM_nofly and "\124cFF00FF00Active\124cFFFFFFFF" or "\124cFFFF0000TURNED OFF\124cFFFFFFFF"));
     elseif command == "mountcount" then
-        local GroundMounts, FlyingMounts, UnderWaterMounts, NoSkillMounts, WaterGroundMounts, AQMounts, FavGround, FavFlying = unpack(KM_GetUsableMounts())
+        local GroundMounts, FlyingMounts, UnderWaterMounts, NoSkillMounts, WaterGroundMounts, AQMounts, FavGround, FavFlying = unpack(kekmount.GetUsableMounts())
         print(KMname .. "Mount count:\nGround: " .. #GroundMounts .. "\nFlying: " .. #FlyingMounts .. "\nUnderwater: " .. #UnderWaterMounts .. "\nSkill-less: " .. #NoSkillMounts .. "\nWaterwalking: " .. #WaterGroundMounts .. "\nAQ: " .. #AQMounts .. "\nFav Ground: " .. #FavGround .. "\nFav Flying: " .. #FavFlying);
     elseif command == "help" then
         print("\124c06418affKek\124c34ec7900Mount")
@@ -438,13 +503,14 @@ end
 -- Courtsey of Ro/US
 LoginFrame:SetScript("OnEvent", function(self, e, ...) 
     KM_mountJournalHook(self, e, ...)
+    updateSettings(false);
     UpdateMountList();
+    SetMapToCurrentZone()
 end)
 
 do
     -- Slash Handler
     SLASH_KekMount1 = "/kmount"
     SlashCmdList.KekMount = handler
-    updateSettings(false);
     LoginFrame:RegisterEvent("PLAYER_LOGIN")
 end

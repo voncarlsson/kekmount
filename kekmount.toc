@@ -1,8 +1,8 @@
-## Interface: 70100
+## Interface: 70150
 ## Title: KekMount
 ## Notes: Summons appropriate mounts based on location and character skill
 ## Author: VonCarlsson
-## Version: 1.5.1
+## Version: 1.6.0
 ## SavedVariablesPerCharacter: kmountdb
 
 kmount_api.lua

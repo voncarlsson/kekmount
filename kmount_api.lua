@@ -1,10 +1,23 @@
+local API = {}
+kekmount = API
 local allMountIDs = C_MountJournal.GetMountIDs()
 local MountExtraData = {}
+local AmbiguousMounts = {185, 305, 530, 376, 203, 454, 753, 600, 248, 413, 219, 547, 363, 846, 802, 845, 741, 456, 522, 459, 593}
 local PlayerFaction = select(1, UnitFactionGroup("player"));
-PlayerFaction = PlayerFaction == "Horde" and 0 or PlayerFaction == "Alliance" and 1;
+API.PlayerFaction = PlayerFaction == "Horde" and 0 or PlayerFaction == "Alliance" and 1;
 
+local function indexOf(t, object)
+    if type(t) == "table" then
+        for i = 1, #t do
+            if object == t[i] then
+                return i
+            end
+        end
+        return -1
+    end
+end
 
-KM_GetMountInfo = setmetatable({}, {
+API.GetMountInfo = setmetatable({}, {
     __index = function(t, k)
         if k == "count" then
             return MountExtraData.count
@@ -27,16 +40,16 @@ KM_GetMountInfo = setmetatable({}, {
 })
 
 
-function KM_GetUsableMounts()
+local function KM_GetUsableMounts()
     local GroundMounts, FlyingMounts, UnderWaterMounts, NoSkillMounts, WaterGroundMounts, AQMounts, FavGround, FavFlying = {}, {}, {}, {}, {}, {}, {}, {}
     local UsableMountCount = 0
     local counters = {1, 1, 1, 1, 1, 1, 1, 1}
-
+    
     for i = 1, #allMountIDs, 1 do
-        local creatureName, creatureID, summonable, isFavorite, isFactionSpecific, faction, owned, mountID, mountType = unpack(KM_GetMountInfo[i]);
+        local creatureName, creatureID, summonable, isFavorite, isFactionSpecific, faction, owned, mountID, mountType = unpack(API.GetMountInfo[i]);
 
         --typeID = bit.band(3, typeID)
-        if owned and (faction == nil or faction == PlayerFaction) and (summonable == true or mountType == 232 or mountType == 254) then
+        if owned and (faction == nil or faction == API.PlayerFaction) and (summonable == true or mountType == 232 or mountType == 254) then
             if mountType == 248 then
                 if isFavorite == true then
                     FavFlying[counters[1]] = mountID
@@ -46,7 +59,7 @@ function KM_GetUsableMounts()
                 counters[2] = counters[2] + 1
             end
 
-            if mountType == 230 or mountType == 269 then
+            if mountType == 230 or mountType == 269 or (indexOf(AmbiguousMounts, mountID) ~= -1 and kmountdb["useambiguouslist"] == true) then
                 GroundMounts[counters[3]] = mountID
                 counters[3] = counters[3] + 1
 
@@ -103,3 +116,6 @@ function KM_GetUsableMounts()
     
     return {GroundMounts, FlyingMounts, UnderWaterMounts, NoSkillMounts, WaterGroundMounts, AQMounts, FavGround, FavFlying, hasSeahorse, UsableMountCount}
 end
+
+API.GetUsableMounts = KM_GetUsableMounts
+API.IndexOf = indexOf
