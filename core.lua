@@ -1,12 +1,13 @@
 local KM_GroundMounts, KM_WaterGroundMounts, KM_UnderWaterMounts, KM_NoSkillMounts, KM_FlyingMounts, KM_AQMounts, MMFavGround, MMFavFlying, hasSeahorse
-local KM_QueueCheck, KMDebug, KM_nofly = false, false, false
+local KM_QueueCheck, KMDebug, KM_nofly = true, false, false
 local KMname = "\124c0c5f94ffKMount: \124cffffffff";
 local KMnamedb = "\124c9021cfffKMount debug: \124cffffffff";
-local KMVer = "1.6.0";
+local KMVer = "1.7.0";
 local KM_FPtime = GetTime();
 local KMlastuse, UsableMountCount = 0, 0
 local NoMountZones = {}
-local underwaterSpells = {76377, 196344, 7179, 22808, 11789, 40621, 44235, 116271}
+local underwaterSpells = {76377, 196344, 7179, 22808, 11789, 40621, 44235, 116271, 188042, 1066}
+local WaterWalkingBlacklist = {1014, 480, 29, 28, 17, 281, 261, 1035}
 local MountFrame, LoginFrame = CreateFrame("Frame"), CreateFrame("Frame")
 
 MountFrame.time = 0
@@ -62,6 +63,29 @@ local function UpdateMountList()
     if KMDebug == true then
         print(KMnamedb .. "Updated mount list. ")
     end
+end
+
+local function WeightedRandom(weights, list)
+    local wsum, sum, rnum = 0, 0, 0
+    
+    for i = 1, #weights do
+        wsum = wsum + weights[i][2]
+    end
+    
+    sum = #list + wsum
+    rnum = math.floor(math.random() * sum) + 1
+    
+    if rnum <= wsum then
+        local count = 0
+        for i = 1, #weights do
+            if rnum >= count and rnum <= count + weights[i][2] then
+                return weights[i][1]
+            end
+            count = count + weights[i][2]
+        end
+    end
+    
+    return list[(rnum - wsum)]
 end
 
 -- Types are 1 for ground mount and 2 for flying mount
@@ -147,7 +171,9 @@ local function KM_Mount(forceType)
         return;
     end
 
-    if GetSpellBookItemInfo("Apprentice Riding") == nil and GetSpellBookItemInfo("Journeyman Riding") == nil and GetSpellBookItemInfo("Expert Riding") == nil and GetSpellBookItemInfo("Artisan Riding") == nil and GetSpellBookItemInfo("Master Riding") == nil then
+    -- Master 90265, Artisan 34091, Expert 34090, Journeyman 33391, Apprentice 33388
+    
+    if not IsSpellKnown(90265) and not IsSpellKnown(34091) and not IsSpellKnown(34090) and not IsSpellKnown(33391) and not IsSpellKnown(33388) then
         if #KM_NoSkillMounts > 0 then
             -- Mounts requiring no riding skill. I.e. Riding Turtle and Chauffeured Mekgineer's Chopper/Mechano-Hog
             C_MountJournal.SummonByID(KM_NoSkillMounts[math.floor(math.random()*#KM_NoSkillMounts) + 1]);
@@ -177,22 +203,36 @@ local function KM_Mount(forceType)
         return;
     end
 
-    if GetCurrentMapContinent() == 1 or GetCurrentMapContinent() == 2 or GetCurrentMapAreaID() == 640 and GetSpellBookItemInfo("Flight Master's License") ~= nil then
+    local tempMapID = GetCurrentMapAreaID();
+    
+    SetMapToCurrentZone();
+    
+    if GetCurrentMapContinent() == 1 or GetCurrentMapContinent() == 2 or GetCurrentMapAreaID() == 640 and IsSpellKnown(90267) then
         -- Kalimdor, Eastern Kingdoms and Deepholm
-        CanFly = true;
-    elseif GetCurrentMapContinent() == 3 and (GetSpellBookItemInfo("Expert Riding") ~= nil or GetSpellBookItemInfo("Artisan Riding") ~= nil or GetSpellBookItemInfo("Master Riding") ~= nil) then
+        -- Flight Master's License 90267
+        CanFly = true
+    elseif GetCurrentMapContinent() == 3 and (IsSpellKnown(34090) or IsSpellKnown(34091) or IsSpellKnown(90265)) then
         -- Outland
-        CanFly = true;
-    elseif GetCurrentMapContinent() == 4 and GetSpellBookItemInfo("Cold Weather Flying") ~= nil then
+        CanFly = true
+    elseif GetCurrentMapContinent() == 4 and IsSpellKnown(54197) then
         -- Northrend
-        CanFly = true;
-    elseif GetCurrentMapContinent() == 6 and GetSpellBookItemInfo("Wisdom of The Four Winds") ~= nil then
+        -- Cold Weather Flying 54197
+        CanFly = true
+    elseif GetCurrentMapContinent() == 6 and IsSpellKnown(115913) then
         -- Pandaria
-        CanFly = true;
-    elseif GetCurrentMapContinent() == 7 and select(4, GetAchievementInfo(10018)) == true then
+        -- Wisdom of the Four Winds 115913
+        CanFly = true
+    elseif GetCurrentMapContinent() == 7 and IsSpellKnown(191645) then
         -- Draenor
-        CanFly = true;
+        -- 191645 is hidden passive from "Draenor Pathfinder"
+        CanFly = true
+    elseif GetCurrentMapContinent() == 8 and IsSpellKnown(233368) then
+        -- Broken Isles
+        -- 233368 is hidden passive from part 2 of "Broken Isles Pathfinder"
+        CanFly = true
     end
+    
+    SetMapByID(tempMapID);
 
     if KM_nofly == true then
         CanFly = false
@@ -214,9 +254,19 @@ local function KM_Mount(forceType)
             C_MountJournal.SummonByID(KM_FlyingMounts[math.floor(math.random()*#KM_FlyingMounts) + 1]);
         end
     else
+        local areaBlacklisted = false
+        if kmountdb["usewwblacklist"] then
+            if kekmount.IndexOf(WaterWalkingBlacklist, GetCurrentMapAreaID()) ~= -1 and not IsSwimming() then
+                areaBlacklisted = true
+                if KMDebug then
+                    print(KMnamedb .. "Map ID is blacklisted.")
+                end
+            end
+        end
         -- Regular mount
-        if #KM_WaterGroundMounts > 0 and kmountdb["preferwmount"] == true then
+        if #KM_WaterGroundMounts > 0 and kmountdb["preferwmount"] == true and not areaBlacklisted and GetNumBattlefieldScores() == 0 then
             -- Unless player is Death Knight we prioritize mounts that can walk on water as they're more convenient
+            -- Also turn off the function if the player is in a battleground or arena since water walking mounts don't work there
             C_MountJournal.SummonByID(KM_WaterGroundMounts[math.floor(math.random()*#KM_WaterGroundMounts) + 1]);
         elseif kmountdb["UseBlizFav"] == true and #MMFavGround > 0 then
             C_MountJournal.SummonByID(MMFavGround[math.floor(math.random()*#MMFavGround) + 1]);
@@ -227,6 +277,8 @@ local function KM_Mount(forceType)
         end
     end
 end
+
+kekmount.summon = KM_Mount
 
 local function isValidMount(n, t)
     -- t is type of mount. 1 = Ground, 2 = Flying
@@ -275,10 +327,12 @@ local function updateSettings(reset)
     end
 
     if kmountdb["wmount"] == nil then
+        -- Underwater Mounts
         kmountdb["wmount"] = true;
     end
 
     if kmountdb["fdismount"] == nil then
+        -- In-flight dismount protection
         kmountdb["fdismount"] = false;
     end
 
@@ -289,14 +343,20 @@ local function updateSettings(reset)
     if kmountdb["fdismountmethod"] == nil then
         kmountdb["fdismountmethod"] = 1;
     end
+
+    if kmountdb["usewwblacklist"] == nil then
+        kmountdb["usewwblacklist"] = false;
+    end
     
     if kmountdb["useambiguouslist"] == nil then
+        -- Treat ground mount look-alikes as ground mounts
         kmountdb["useambiguouslist"] = true;
     end
 
     if select(3, UnitClass("player")) ~= 6 and kmountdb["preferwmount"] == nil then
         kmountdb["preferwmount"] = true;
     elseif kmountdb["preferwmount"] == nil then
+        -- Death Knight
         kmountdb["preferwmount"] = false;
     end
 end
@@ -338,17 +398,36 @@ local function handler(msg, editbox)
         if count == 0 then
             print(KMname .. "No mounts available in that category.");
         end
-    elseif command == "getbyname" then
+    elseif command == "indexbyname" or command == "ibn" then
         for i = 1, kekmount.GetMountInfo.count, 1 do
             local creatureName = kekmount.GetMountInfo[i][1];
             if creatureName ~= nil then
                 if strlower(strsub(creatureName, 1, strlen(rest))) == strlower(rest) then
-                    print(KMname .. "Index of \124c0c5f94ff" .. creatureName .. "\124cffffffff is \124c0c5f94ff" .. kekmount.GetMountInfo[i][8] .. "\124cffffffff.");
-                    return;
+                    local MInfo = kekmount.GetMountInfo[i]
+                    print(KMname .. "Index of \124c0c5f94ff" .. creatureName .. "\124cffffffff is \124c0c5f94ff" .. MInfo[8] .. "\124cffffffff (Internal: " .. i .. ").");
+                    if KMDebug then
+                        print(KMnamedb .. "Internal: " .. i .. " | CID: " .. MInfo[2] .. " | Type: " .. MInfo[9] .. " | Summonable: " .. (MInfo[3] and "True" or "False") .. ".")
+                    end
+                    return
                 end
             end
         end
         print(KMname .. " '" .. rest .. "' did not match any mounts.");
+    elseif command == "namebyindex" or command == "nbi" then
+        rest = tonumber(rest)
+        if rest == nil then
+            print(KMname .. "No index or invalid index format provided. Index must be a number.");
+            return
+        end
+
+        local name = kekmount.NameByIndex(rest)
+        
+        if not name then
+            print(KMname .. "No mount at index " .. rest .. " found.")
+            return
+        end
+
+        print(KMname .. "Mount at index \124c0c5f94ff" .. rest .. "\124cffffffff is \124c0c5f94ff" .. name .. "\124cffffffff.");
     elseif command == "setg" then
         if isValidMount(rest, 1) then
             kmountdb["PreferredGMount"] = rest;
@@ -427,6 +506,7 @@ local function handler(msg, editbox)
         print("\124c0c5f94ffPrefer Blizzard's mount manager favorite(s): \124cffffffff" .. (kmountdb["UseBlizFav"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
         print("\124c0c5f94ffPrefer water walking mount(s): \124cffffffff" .. (kmountdb["preferwmount"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
         print("\124c0c5f94ffUse ambiguous flying mounts as ground mount(s): \124cffffffff" .. (kmountdb["useambiguouslist"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
+        print("\124c0c5f94ffUse water walking blacklist: \124cffffffff" .. (kmountdb["usewwblacklist"] == true and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
         print("\124c0c5f94ffSession no-fly: \124cffffffff" .. (KM_nofly and "\124cFF00FF00Yes\124cFFFFFFFF" or "\124cFFFF0000No\124cFFFFFFFF"));
     elseif command == "reset" then
         updateSettings(true);
@@ -451,6 +531,14 @@ local function handler(msg, editbox)
             kmountdb["UseBlizFav"] = true;
             print(KMname .. "Will now prefer favorite(s) in mount manager.");
         end
+    elseif command == "togglewb" then
+        if kmountdb["usewwblacklist"] == true then
+            kmountdb["usewwblacklist"] = false;
+            print(KMname .. "Will \124cFFFF0000NO LONGER\124cFFFFFFFF use waterwalking region blacklist.");
+        else
+            kmountdb["usewwblacklist"] = true;
+            print(KMname .. "Will now not prefer waterwalking mounts in blacklisted regions.");
+        end
     elseif command == "update" then
         UpdateMountList()
         print(KMname .. "Updated mount list.");
@@ -463,7 +551,8 @@ local function handler(msg, editbox)
     elseif command == "help" then
         print("\124c06418affKek\124c34ec7900Mount")
         print("\124c0c5f94ffGet <type> - \124cffffffffPrints all owned, usable mounts. Usefull to find the index for specific mounts.");
-        print("\124c0c5f94ffGetbyname <query> - \124cffffffffSearch through all mounts (even unavailable) and returns an index number if a match is found.");
+        print("\124c0c5f94ffIndexByName|ibn <query> - \124cffffffffSearch through all mounts (even unavailable) and returns an index number if a match is found (and more with debug toggled).");
+        print("\124c0c5f94ffNameByIndex|nbi <query> - \124cffffffffReturn the name of mount at specified index, if it exists.");
         print("\124c0c5f94ffSetg - \124cffffffffSet the desired ground mount.");
         print("\124c0c5f94ffUsetg - \124cffffffffUnsets the desired ground mount.");
         print("\124c0c5f94ffSetf - \124cffffffffSet the desired flying mount.");
@@ -472,6 +561,7 @@ local function handler(msg, editbox)
         print("\124c0c5f94ffTogglepw - \124cffffffffToggles preference for ground mounts that can walk on water.");
         print("\124c0c5f94ffTogglefd - \124cffffffffToggles dismount preference while flying.");
         print("\124c0c5f94ffTogglebf - \124cffffffffToggles use of mount manager favorite(s).");
+        print("\124c0c5f94ffTogglewb - \124cffffffffToggles use of water walking blacklist.");
         print("\124c0c5f94ffF - \124cffffffffForce summon flying mount.");
         print("\124c0c5f94ffG - \124cffffffffForce summon ground mount.");
         print("\124c0c5f94ffInfo - \124cffffffffDisplays settings for current character.");

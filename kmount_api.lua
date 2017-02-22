@@ -2,7 +2,8 @@ local API = {}
 kekmount = API
 local allMountIDs = C_MountJournal.GetMountIDs()
 local MountExtraData = {}
-local AmbiguousMounts = {185, 305, 530, 376, 203, 454, 753, 600, 248, 413, 219, 547, 363, 846, 802, 845, 741, 456, 522, 459, 593}
+local AmbiguousMounts = {185, 305, 376, 203, 454, 753, 600, 413, 219, 547, 363, 846, 802, 845, 741, 456, 522, 459, 593, 881, 751, 764, 458, 451, 457, 532, 468, 439, 523, 594}
+-- See dev_notes.txt for references or use the NameByIndex command in-game
 local PlayerFaction = select(1, UnitFactionGroup("player"));
 API.PlayerFaction = PlayerFaction == "Horde" and 0 or PlayerFaction == "Alliance" and 1;
 
@@ -39,6 +40,15 @@ API.GetMountInfo = setmetatable({}, {
     end
 })
 
+local function NameByIndex(n)
+    for i = 1, #allMountIDs, 1 do
+        if API.GetMountInfo[i][8] == n then
+            return API.GetMountInfo[i][1]
+        end
+    end
+
+    return false
+end
 
 local function KM_GetUsableMounts()
     local GroundMounts, FlyingMounts, UnderWaterMounts, NoSkillMounts, WaterGroundMounts, AQMounts, FavGround, FavFlying = {}, {}, {}, {}, {}, {}, {}, {}
@@ -119,3 +129,4 @@ end
 
 API.GetUsableMounts = KM_GetUsableMounts
 API.IndexOf = indexOf
+API.NameByIndex = NameByIndex

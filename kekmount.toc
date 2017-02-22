@@ -2,7 +2,7 @@
 ## Title: KekMount
 ## Notes: Summons appropriate mounts based on location and character skill
 ## Author: VonCarlsson
-## Version: 1.6.0
+## Version: 1.7.0
 ## SavedVariablesPerCharacter: kmountdb
 
 kmount_api.lua

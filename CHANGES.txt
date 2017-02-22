@@ -1,3 +1,39 @@
+1.7.0
+* Bugfixes
+- Fixed a bug where looking at the map would sometimes cause summoning a mount to not work properly
+
+* Changes
+- Added Arcanist's Manasaber to ambiguous mount list
+- Will now always queue a mount check when loading kekmount
+- Using IsSpellKnown() instead of probing for a spell book index by name
+- Added "Underlight Blessing" (from artifact fishing rod) to underwater spells
+- Added "Aquatic Form" (druid) to underwater spells
+- GetByName is now called IndexByName or ibn
+- Removed "Armored Skyscreamer" from the ambiguous list
+- Removed "Bronze Drake" from the ambiguous list
+- Added "Felsteel Annihilator" to the ambiguous list
+- Added "Grove Warden" to the ambiguous list
+- Added "Ruby Panther" to the ambiguous list
+- Added "Jeweled Onyx Panther" to the ambiguous list
+- Added "Jade Panther" to the ambiguous list
+- Added "Ghastly Charger" to the ambiguous list
+- Added "Imperial Quilen" to the ambiguous list
+- Added "Tyrael's Charger" to the ambiguous list
+- Added "Swift Windsteed" to the ambiguous list
+- Added "Grinning Reaver" to the ambiguous list
+- Will no longer prefer water walking mounts in battlegrounds as they don't function there anyway
+
+* New features
+- Will now recognize flying pre-requisites for flying on the Broken Isles and is hopefully 7.2-proof
+- Added the summon function to the public interface: kekmount.summon
+- Added the NameByIndex function to the public interface: kekmount.NameByIndex
+- Added NameByIndex or nbi command, this is mostly for dev purpoes
+- Additional information is now available from NameByIndex (previously GetByName) when debug is toggled on
+- Added a map ID blacklist that will prevent kmount from prefering waterwalking mounts if togglepw is active in certain regions. For now this feature will remain undocumented and "hidden".
+
+* Notes
+- I experimented with allowing the player to assign weights to mounts, to be used when randomly selecting one but ultimately decided not to implement the feature. I feel that it detracts from the whole idea of picking a random mount. If the player very much would like a specific mount be picked then he or she can use the prefered mount feature or simply remove those the player planned on keeping at the default weight. That being said, I'm not excluding the posibility of it ever making its way into kekmount, just not right now.
+
 1.6.0
 * Bugfixes
 - Added additional measures to prevent KM_GetUsableMounts() from being called in-combat
